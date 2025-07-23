@@ -167,41 +167,6 @@ This function is crucial for maintaining data consistency between the host and t
         return []
 ```
 
-## 4. End-to-End Request Execution Flow
-
-This section illustrates the step-by-step execution path for both a DPU-offloaded `GET` request and a host-handled `PUT` request to clarify how the components interact.
-
-### 4.1. DPU-Offloaded `GET` Request
-```mermaid
-sequenceDiagram
-    participant Client
-    participant TrafficDirector as Traffic Director (DPU)
-    participant OffloadEngine as Offload Engine (DPU)
-    participant FileService as File Service (DPU)
-
-    Client->>TrafficDirector: 1. GET("my_key")
-    TrafficDirector->>TrafficDirector: 2. OffPred -> Offloadable
-    TrafficDirector->>OffloadEngine: 3. Forward Request
-    OffloadEngine->>OffloadEngine: 4. OffFunc -> Get Address
-    OffloadEngine->>FileService: 5. Submit ReadOp
-    FileService-->>Client: 6. Read from SSD & Respond
-```
-
-### 4.2. Host-Handled PUT Request
-sequenceDiagram
-    participant Client
-    participant DPU_TrafficDirector as Traffic Director (DPU)
-    participant Host
-    participant DPU_Cache as Cache Table (DPU)
-
-    Client->>DPU_TrafficDirector: 1. PUT("new_key", "value")
-    DPU_TrafficDirector->>DPU_TrafficDirector: 2. OffPred -> Forward to Host
-    DPU_TrafficDirector->>Host: 3. Forward Request
-    Host->>Host: 4. Write to SSD
-    Host->>DPU_Cache: 5. Call Cache() to update
-    DPU_Cache->>DPU_Cache: 6. Insert ("new_key", address)
-    Host-->>Client: 7. Respond with Success
-
 
 ## 5. Expected Benefits
 
