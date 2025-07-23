@@ -175,17 +175,17 @@ This section illustrates the step-by-step execution path for both a DPU-offloade
 ```mermaid
 sequenceDiagram
     participant Client
-    participant DPU_TrafficDirector as Traffic Director (DPU)
-    participant DPU_OffloadEngine as Offload Engine (DPU)
-    participant DPU_FileService as File Service (DPU)
-    participant Host
+    participant TrafficDirector as Traffic Director (DPU)
+    participant OffloadEngine as Offload Engine (DPU)
+    participant FileService as File Service (DPU)
 
-    Client->>DPU_TrafficDirector: 1. GET("my_key")
-    DPU_TrafficDirector->>DPU_TrafficDirector: 2. OffPred -> Offloadable
-    DPU_TrafficDirector->>DPU_OffloadEngine: 3. Forward Request
-    DPU_OffloadEngine->>DPU_OffloadEngine: 4. OffFunc -> Get Address
-    DPU_OffloadEngine->>DPU_FileService: 5. Submit ReadOp
-    DPU_FileService-->>Client: 6. Read from SSD & Respond
+    Client->>TrafficDirector: 1. GET("my_key")
+    TrafficDirector->>TrafficDirector: 2. OffPred -> Offloadable
+    TrafficDirector->>OffloadEngine: 3. Forward Request
+    OffloadEngine->>OffloadEngine: 4. OffFunc -> Get Address
+    OffloadEngine->>FileService: 5. Submit ReadOp
+    FileService-->>Client: 6. Read from SSD & Respond
+```
 
 ### 4.2. Host-Handled PUT Request
 sequenceDiagram
