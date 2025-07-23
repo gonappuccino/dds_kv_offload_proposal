@@ -16,7 +16,7 @@ This design assumes a simple KV store with the following characteristics:
 
 ## 3. DDS Offload API Implementation Design (Pseudo-code)
 
-The following Python-style pesudo-code outlines how the DDS offload API could be implemented for our KV hypothetical store.
+The following Python-style pseudo-code outlines how the DDS offload API could be implemented for our KV hypothetical store.
 
 ### 3.1. 'OffPred': Request Distribution
 
@@ -27,13 +27,13 @@ def OffPred(Msg, CacheTable):
     """
     Offload Predicate for a batched KV store.
 
-    Given a network message potentially containing a batch of KV requests, this function inspects each request and classifies them into two sets:
+    Given a network message potentially containing a batch of KV requests, this function inspects each request and classifies them into two lists:
     - `host_requests`: to be handled by the host CPU
     - `dpu_requests`: to be offloaded to the DPU
 
     Offload policy:
-    - GET requests are offloaded only if the key exists in the DPU-side cache.
-    - PUT and DELETE requests always go to the host to ensure data consistency and leverage the host's superior processing power for writes (as discussed in Sce. 2 of the paper).
+    - A GET request is offloaded only if the key exists in the DPU-side cache.
+    - PUT and DELETE requests always go to the host to ensure data consistency and leverage the host's superior processing power for writes (as discussed in §2 of the paper).
     """
 
     host_requests = []
@@ -45,9 +45,9 @@ def OffPred(Msg, CacheTable):
 
     for req in individual_requests:
         if req.op_type == 'GET':
-            # A GET requests is offloadable ONLY if its key exists in the DPU cache table.
-            if req.key in cache_table:
-                # Cache hit: THE DPU can serve the read directly.
+            # GET requests are offloadable ONLY if its key exists in the DPU cache table.
+            if req.key in CacheTable:
+                # Cache hit: The DPU can serve the read directly.
                 dpu_requests.append(req)
             else:
                 # Cache miss: The request must be handled by the host.
@@ -124,7 +124,7 @@ The Offload Function is the core of the execution engine. It translates a logica
         - Level 1 (DPU-side): Logical key -> (file.id, offset, size)
         - Level 2 (File Service): (file.id, offset, size) -> disk block access
 
-        If the key is not found in the cache (which should not happen if OffPred is correct), the request is conservatively forwarded to the host.
+        Fallback to host if cache entry is missing (should not occur if OffPred works correctly).
         """
         
         key = getattr(Req, 'key', None)
@@ -133,42 +133,38 @@ The Offload Function is the core of the execution engine. It translates a logica
             log_warning("GET request missing key field")
             return ForwardToHost(Req)
         
-        physical_address = cacheTable.get(key)
+        physical_address = CacheTable.get(key)
         
         if physical_address:
             file_id, offset, size = physical_address
             return CreateReadOp(file_id=file_id, offset=offset, size=size)
         else:
             # fallback
-            log_warning(f"Cache miss in offFunc for key: {key}. Forwarding to host.")
+            log_warning(f"Cache miss in OffFunc for key: {key}. Forwarding to host.")
             return ForwardToHost(Req)
 ```
 
 ### 3.4 Invalidate: Maintaining Cache Coherency
 
-This function is crucial for maintaining data consistency between the host and the DPU cache, implementing an 'invalidate-on-update' policy.
+This function is crucial for maintaining data consistency between the host and the DPU cache, implementing an 'invalidate-on-read' policy.
 
 ```python
     def Invalidate(ReadOp):
         """
-        Determines which keys should be evicted from the DPU cache after a host-side operation.
+        Evicts an entry from the DPU cache when a file read occurs on the host.
 
-        When a key is updated (e.g., via PUT or UPDATE) or deleted, the corresponding cachee entry on the DPU becomes stale. This function identifies such keys and returns them for removal to ensure the DPU never serves outdated or incorrect data.
-
-        The returned list of keys will be used to purge stale entries from the cache table.
+        This function implements the 'invalidate-on-read' policy, which is a precautionary measure described in the 
+        DDS paper. It assumes that data read by the host might be modified in the host's memory, so its DPU cache entry 
+        should be removed to prevent serving potentially stale data.
         """
-        
-        op_type = ReadOp.type
 
-        if op_type in ['DELETE', 'UPDATE']:
-            key_to_invalidate = ReadOp.key
-            return [key_to_invalidate]
-        
-        return []
+        # for each read, return the keys to be removed.
+        keys_to_invalidate = ReadOp.keys
+        return keys_to_invalidate
 ```
 
 
-## 5. Expected Benefits
+## 4. Expected Benefits
 
 By adopting this design, a KV store can leverage the DDS architecture to achieve significant performance and efficiency gains, as demonstrated in the source paper. The primary benefits include:
 
